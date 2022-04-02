@@ -8,6 +8,7 @@
 #include "MemoryFree.h"
 #include <math.h>
 #define DEBUG 1
+#define INTERVAL1 30000
 
 // software Serial pins
 //#define rxPin 2
@@ -15,8 +16,7 @@
 void mpptCallback(uint16_t id, int32_t value);
 VEDirect mppt(Serial2, mpptCallback);
 
-float panelVoltage = 0.00f;
-float chargeCurrent = 0.00f;
+
 
 // Ethernet
 
@@ -43,14 +43,10 @@ float charging_voltage = 0.00f;
 float charging_current = 0.00f;
 float battery_voltage = 0.00f;
 float load_current = 0.00f;
+float panelVoltage = 0.00f;
 
 EthernetClient ethClient;
 PubSubClient client(mqtt_server, 1883, ethClient);
-
-// 32 bit ints to collect the data from the device
-int16_t VE_soc, VE_power, VE_voltage, VE_current;
-// Boolean to collect an ON/OFF value
-uint8_t VE_alarm;
 
 // VEDirect instantiated with relevant serial object
 //VEDirect myve(rxPin, txPin);
@@ -82,6 +78,15 @@ void mpptCallback(uint16_t id, int32_t value)
     Serial.print(F("Load current: "));
     Serial.println(load_current * 0.1);
   }
+  if(id == VEDirect_kBatteryVoltage)
+  {
+    float battery_voltage = 0.00f;
+    battery_voltage = value * 0.01;
+    Serial.print(F("battery voltage: "));
+    Serial.println(battery_voltage);
+  }
+  Serial.println(id);
+  Serial.println(value);
 }
 
 // Watchdog ISR routine
@@ -93,11 +98,10 @@ ISR (WDT_vect)
 
 void setup() 
 {
-  if(DEBUG == 1)
-  {
+
     Serial.begin(9600); // Debug serial
     Serial.println("Serial debug begins!");
-  }
+  
   //Ethernet
   Ethernet.init(10);
   Ethernet.begin(mac);
@@ -122,6 +126,14 @@ void loop()
   }
 
 // MQTT
+// send message every 30 seconds
+unsigned long counter1 = millis();
+static unsigned long counter2 = 0;
+
+if(counter2 - counter1 > INTERVAL1)
+{
+  counter1 = counter2; // reset counter
+
   if (client.connect(clientID, mqtt_username, mqtt_password)) 
   {
     if(DEBUG == 1)
@@ -134,7 +146,7 @@ void loop()
       {
         Serial.println("Battery voltage sent!");
         Serial.print("Battery voltage: ");
-        Serial.println(VE_voltage);
+        Serial.println(battery_voltage);
       }
     }
     // Again, client.publish will return a boolean value depending on whether it succeded or not.
@@ -178,7 +190,7 @@ void loop()
     {
       if(DEBUG == 1)
       {
-        Serial.println("Panvel voltage sent!");
+        Serial.println("Panel voltage sent!");
         Serial.print("Panel voltage: ");
         Serial.println(panelVoltage);
       }
@@ -204,6 +216,7 @@ void loop()
       Serial.println("Connection to MQTT Broker failed...");
     }
   }
+  }
 
   client.disconnect();  // disconnect from MQTT broker
   if(DEBUG == 1)
@@ -211,6 +224,6 @@ void loop()
     Serial.print("Free memory: ");
     Serial.println(freeMemory());
   }
-  delay(1000*10);       // print new values every 1 Minute
+  //delay(1000*10);       // print new values every 1 Minute
 
 } // Main loop ends
