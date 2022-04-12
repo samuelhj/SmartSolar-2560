@@ -18,4 +18,4 @@ const char* mqtt_server = "mqtt.example.com";  // Host of the MQTT broker
 // In this example we only have Battery voltage, charging current, and panel voltage
 const char* battery_voltage_topic = "topic/subtopic/battery_voltage";
 const char* charging_current_topic = "topic/subtopic/charging_current";
-const char* vpv_topic = "Elmar/WX1/vpv";
+const char* vpv_topic = "topic/subtopic/vpv";
