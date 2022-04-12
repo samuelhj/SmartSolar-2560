@@ -29,7 +29,7 @@ IPAddress ip(10, 1, 2, 28);
 IPAddress dns1(1, 1, 1, 1); //Adddress of Domain name server 
 
 float charging_voltage = 0.00f;
-float charging_current = 0.00f;
+uint16_t charging_current = 0;
 float battery_voltage = 0.00f;
 float load_current = 0.00f;
 float panelVoltage = 0.00f;
@@ -51,9 +51,9 @@ void mpptCallback(uint16_t id, int32_t value)
   }
   if (id == VEDirect_kChargeCurrent)
   {
-    charging_current = value * 0.1;
+    charging_current = value;
     Serial.print(F("Ich : "));
-    Serial.println(value * 0.1);
+    Serial.println(charging_current);
   }
   if(id == VEDirect_kLoadCurrent)
   {
@@ -117,7 +117,7 @@ if(counter1 - counter2 > INTERVAL1)
 {
   counter2 = counter1; // reset counter
 
-  if (client.connect(clientID, mqtt_username, mqtt_password)) 
+  if (client.connect(clientID, mqtt_username, mqtt_password) && battery_voltage != 0) 
   {
     if(DEBUG == 1)
     {
@@ -140,9 +140,12 @@ if(counter1 - counter2 > INTERVAL1)
       {
         Serial.println("Battery voltage failed to send. Reconnecting to MQTT Broker and trying again");
       }
-      client.connect(clientID, mqtt_username, mqtt_password);
-      delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
-      client.publish(battery_voltage_topic, String(battery_voltage).c_str());
+      if(battery_voltage != 0)
+      {
+        client.connect(clientID, mqtt_username, mqtt_password);
+        delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
+        client.publish(battery_voltage_topic, String(battery_voltage).c_str());
+      }
     } // Battery voltage ends
 
     // Load current
