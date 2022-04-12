@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include "VEdirect.h"
 #include <Ethernet.h>
 #include <SPI.h>
 #include <PubSubClient.h> // MQTT client
@@ -8,6 +7,7 @@
 #include "MemoryFree.h"
 #include <math.h>
 #include "authentication.h"
+#include "VEDirect.h"
 
 #define DEBUG 1
 #define INTERVAL1 30000
@@ -27,8 +27,6 @@ VEDirect mppt(Serial2, mpptCallback);
 byte mac[] = {  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 IPAddress ip(10, 1, 2, 28);
 IPAddress dns1(1, 1, 1, 1); //Adddress of Domain name server 
-
-
 
 float charging_voltage = 0.00f;
 float charging_current = 0.00f;
@@ -57,12 +55,6 @@ void mpptCallback(uint16_t id, int32_t value)
     Serial.print(F("Ich : "));
     Serial.println(value * 0.1);
   }
-  if(id == VEDirect_kLoadVoltage)
-  {
-    battery_voltage = value * 0.01;
-    Serial.print(F("Vb: "));
-    Serial.println(value * 0.01);
-  }
   if(id == VEDirect_kLoadCurrent)
   {
     load_current = value * 0.1;
@@ -71,12 +63,12 @@ void mpptCallback(uint16_t id, int32_t value)
   }
   if(id == VEDirect_kBatteryVoltage)
   {
-    float battery_voltage = 0.00f;
+    battery_voltage = 0.00f;
     battery_voltage = value * 0.01;
     Serial.print(F("battery voltage: "));
     Serial.println(battery_voltage);
   }
-  Serial.println(id);
+  Serial.println(id, HEX);
   Serial.println(value);
 }
 
@@ -90,9 +82,9 @@ ISR (WDT_vect)
 void setup() 
 {
 
-    Serial.begin(9600); // Debug serial
-    Serial.println("Serial debug begins!");
-  
+  Serial.begin(9600); // Debug serial
+  Serial.println("Serial debug begins!");
+
   //Ethernet
   Ethernet.init(10);
   Ethernet.begin(mac);
@@ -121,9 +113,9 @@ void loop()
 unsigned long counter1 = millis();
 static unsigned long counter2 = 0;
 
-if(counter2 - counter1 > INTERVAL1)
+if(counter1 - counter2 > INTERVAL1)
 {
-  counter1 = counter2; // reset counter
+  counter2 = counter1; // reset counter
 
   if (client.connect(clientID, mqtt_username, mqtt_password)) 
   {
@@ -197,6 +189,29 @@ if(counter2 - counter1 > INTERVAL1)
       client.connect(clientID, mqtt_username, mqtt_password);
       delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
       client.publish(vpv_topic, String(panelVoltage).c_str());
+    } //Panel voltage
+
+    // Charging current
+    if (client.publish(charging_current_topic, String(charging_current).c_str())) 
+    {
+      if(DEBUG == 1)
+      {
+        Serial.println("Charging current sent!");
+        Serial.print("Charging current: ");
+        Serial.println(charging_current);
+      }
+    }
+    // Again, client.publish will return a boolean value depending on whether it succeded or not.
+    // If the message failed to send, we will try again, as the connection may have broken.
+    else 
+    {
+      if(DEBUG == 1)
+      {
+        Serial.println("Charging current failed to send. Reconnecting to MQTT Broker and trying again");
+      }
+      client.connect(clientID, mqtt_username, mqtt_password);
+      delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
+      client.publish(charging_current_topic, String(charging_current).c_str());
     } //SOC ends
 
   } //MQTT transmission ends
@@ -207,14 +222,14 @@ if(counter2 - counter1 > INTERVAL1)
       Serial.println("Connection to MQTT Broker failed...");
     }
   }
-  }
+  
 
-  client.disconnect();  // disconnect from MQTT broker
-  if(DEBUG == 1)
-  {
-    Serial.print("Free memory: ");
-    Serial.println(freeMemory());
-  }
-  //delay(1000*10);       // print new values every 1 Minute
+    client.disconnect();  // disconnect from MQTT broker
+    if(DEBUG == 1)
+    {
+      Serial.print("Free memory: ");
+      Serial.println(freeMemory());
+    }
+  } // MQTT ends
 
 } // Main loop ends
